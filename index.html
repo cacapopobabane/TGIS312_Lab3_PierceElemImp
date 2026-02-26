@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pierce County Elementary Schools — Impervious Surface Analysis</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #141720;
+    --border: #1e2330;
+    --accent: #4fffb0;
+    --accent2: #ff6b6b;
+    --accent3: #ffd166;
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --least: #4fffb0;
+    --middle: #ffd166;
+    --most: #ff6b6b;
+    --urban-c: #60a5fa;
+    --nonurban-c: #a78bfa;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; line-height: 1.6; min-height: 100vh; }
+  header { padding: 40px 48px 24px; border-bottom: 1px solid var(--border); }
+  header .eyebrow { font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.2em; color: var(--accent); text-transform: uppercase; margin-bottom: 8px; }
+  header h1 { font-size: 30px; font-weight: 300; letter-spacing: -0.02em; margin-bottom: 6px; }
+  header h1 span { color: var(--accent); font-weight: 600; }
+  header p { color: var(--muted); font-size: 13px; }
+  .stats-bar { display: grid; grid-template-columns: repeat(5, 1fr); border-bottom: 1px solid var(--border); }
+  .stat-cell { padding: 18px 24px; border-right: 1px solid var(--border); }
+  .stat-cell:last-child { border-right: none; }
+  .stat-cell .label { font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 0.15em; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+  .stat-cell .value { font-size: 26px; font-weight: 600; line-height: 1; }
+  .stat-cell .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); }
+  .chart-card { background: var(--surface); padding: 26px 30px; }
+  .chart-card.wide, .table-card { grid-column: 1 / -1; }
+  .table-card { background: var(--surface); padding: 26px 30px; overflow-x: auto; }
+  .chart-card h2 { font-size: 10px; font-family: 'Space Mono', monospace; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
+  .chart-card p.desc { font-size: 12px; color: var(--muted); margin-bottom: 18px; }
+  .insight-box { background: rgba(79,255,176,0.05); border: 1px solid rgba(79,255,176,0.15); border-radius: 6px; padding: 12px 16px; margin-top: 14px; font-size: 12px; color: #9ca3af; line-height: 1.7; }
+  .insight-box strong { color: var(--accent); font-weight: 500; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead th { font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); cursor: pointer; white-space: nowrap; }
+  thead th:hover { color: var(--accent); }
+  tbody tr { border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s; }
+  tbody tr:hover { background: rgba(255,255,255,0.03); }
+  tbody td { padding: 7px 12px; vertical-align: middle; white-space: nowrap; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-family: 'Space Mono', monospace; font-weight: 700; }
+  .badge-least { background: rgba(79,255,176,0.12); color: var(--least); }
+  .badge-middle { background: rgba(255,209,102,0.12); color: var(--middle); }
+  .badge-most { background: rgba(255,107,107,0.12); color: var(--most); }
+  .badge-urban { background: rgba(96,165,250,0.12); color: var(--urban-c); }
+  .badge-nonurban { background: rgba(167,139,250,0.12); color: var(--nonurban-c); }
+  .badge-large { background: rgba(79,255,176,0.08); color: #6ee7b7; }
+  .badge-avg { background: rgba(255,255,255,0.06); color: #9ca3af; }
+  .badge-small { background: rgba(255,107,107,0.08); color: #fca5a5; }
+  .pct-bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .pct-bar { height: 6px; border-radius: 3px; flex-shrink: 0; }
+  .filter-row { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+  select, input { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 4px; font-family: 'DM Sans', sans-serif; font-size: 12px; outline: none; cursor: pointer; }
+  select:focus, input:focus { border-color: var(--accent); }
+  .row-count { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); padding: 6px 0; letter-spacing: 0.1em; }
+  .legend-row { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 12px; font-size: 11px; color: var(--muted); }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  footer { padding: 20px 48px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); font-family: 'Space Mono', monospace; }
+</style>
+</head>
+<body>
+<header>
+  <div class="eyebrow">GIS Analysis · Pierce County, WA · Lab 3</div>
+  <h1>Elementary School <span>Impervious Surface</span> Analysis</h1>
+  <p>144 schools across Pierce County — examining size, urban designation, and impervious surface coverage</p>
+</header>
+<div class="stats-bar">
+  <div class="stat-cell"><div class="label">Total Schools</div><div class="value" style="color:var(--accent)">144</div><div class="sub">Pierce County</div></div>
+  <div class="stat-cell"><div class="label">Avg Imp. Surface</div><div class="value" style="color:var(--accent3)">52.1%</div><div class="sub">County-wide mean</div></div>
+  <div class="stat-cell"><div class="label">Urban / Non-Urban</div><div class="value" style="color:var(--urban-c)">132 <span style="font-size:16px;color:var(--muted)">/ 12</span></div><div class="sub">schools by designation</div></div>
+  <div class="stat-cell"><div class="label">Most Impervious</div><div class="value" style="color:var(--most)">89.8%</div><div class="sub">Imagination School</div></div>
+  <div class="stat-cell"><div class="label">Least Impervious</div><div class="value" style="color:var(--least)">4.6%</div><div class="sub">Anderson Island Elem.</div></div>
+</div>
+
+<div class="main-grid">
+
+  <div class="chart-card">
+    <h2>Impervious Rank × Urban Designation</h2>
+    <p class="desc">Distribution of impervious tiers across urban vs. non-urban schools</p>
+    <canvas id="urbanImpChart" height="210"></canvas>
+    <div class="insight-box"><strong>Finding:</strong> Urban schools skew heavily toward "Most Impervious" — nearly half of all urban schools fall in the top tier. Non-urban schools concentrate in "Least Impervious," though Orting Primary at 73% is a notable outlier that breaks the rural = green assumption.</div>
+  </div>
+
+  <div class="chart-card">
+    <h2>Size × Impervious Rank</h2>
+    <p class="desc">Do larger campuses have lower impervious surface coverage?</p>
+    <canvas id="sizeImpChart" height="210"></canvas>
+    <div class="insight-box"><strong>Pattern:</strong> Large schools trend toward Least Impervious — more acreage likely means more greenspace proportionally. Small schools are almost entirely Most Impervious, which tracks: tiny urban lots leave little room for pervious surfaces.</div>
+  </div>
+
+  <div class="chart-card wide">
+    <h2>Scatter: Campus Size (Acres) vs. % Impervious Surface</h2>
+    <p class="desc">Each dot is a school — color-coded by impervious rank. Hover for school name and values.</p>
+    <div class="legend-row">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--least)"></div>Least Impervious</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--middle)"></div>Middle</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--most)"></div>Most Impervious</div>
+    </div>
+    <canvas id="scatterChart" height="120"></canvas>
+    <div class="insight-box"><strong>Outlier:</strong> Zeiger Elementary (Puyallup) at 9.2 acres is by far the largest campus, yet sits in the Middle tier at 40.6%. Graham Elementary (5.0 ac, 22.7%) and Foothills (5.6 ac, 24.4%) are the greenest large campuses. The negative correlation between size and imperviousness is real but noisy — urban context overrides it for many schools.</div>
+  </div>
+
+  <div class="chart-card wide">
+    <h2>Average % Impervious Surface by School District</h2>
+    <p class="desc">Which districts have the most paved-over campuses on average? Color = tier threshold.</p>
+    <canvas id="districtChart" height="180"></canvas>
+    <div class="insight-box"><strong>Equity angle:</strong> Tacoma USD leads with the highest average impervious coverage (~66%), consistent with dense urban development and older, smaller campuses. Eatonville and Peninsula districts land lowest. Worth noting that Tacoma schools also serve higher-need student populations — less green space compounds existing disadvantage.</div>
+  </div>
+
+  <div class="chart-card">
+    <h2>Distribution of % Impervious Surface</h2>
+    <p class="desc">How all 144 schools cluster across the coverage spectrum</p>
+    <canvas id="histChart" height="210"></canvas>
+    <div class="insight-box"><strong>Shape:</strong> Bimodal — one cluster at 30–45% and a larger one at 55–75%. Few schools sit in the 45–55% middle ground. The high-end cluster is dominated by urban Tacoma schools.</div>
+  </div>
+
+  <div class="chart-card">
+    <h2>Campus Size Classification</h2>
+    <p class="desc">Breakdown of Small / Average / Large across all schools</p>
+    <canvas id="sizeDonut" height="210"></canvas>
+    <div class="insight-box"><strong>Context:</strong> 60% of schools are "Average" size. Small schools (20%) are concentrated in urban Tacoma and are among the most impervious. Large schools (19%) include suburban and rural campuses with more varied imperviousness patterns.</div>
+  </div>
+
+  <div class="table-card">
+    <h2>All 144 Schools — Sortable Data Table</h2>
+    <p class="desc" style="margin-bottom:14px">Click column headers to sort. Filter by district, size, urban designation, or imp. rank.</p>
+    <div class="filter-row">
+      <select id="filterDistrict" onchange="filterTable()"><option value="">All Districts</option></select>
+      <select id="filterSize" onchange="filterTable()"><option value="">All Sizes</option><option>Small</option><option>Average</option><option>Large</option></select>
+      <select id="filterUrban" onchange="filterTable()"><option value="">All Designations</option><option>Urban</option><option value="Non-Urban">Non-Urban</option></select>
+      <select id="filterRank" onchange="filterTable()"><option value="">All Ranks</option><option value="Least Impervious">Least Impervious</option><option value="Middle">Middle</option><option value="Most Impervious">Most Impervious</option></select>
+      <input type="text" id="filterSearch" placeholder="Search school name..." oninput="filterTable()" style="min-width:180px">
+    </div>
+    <div class="row-count" id="rowCount"></div>
+    <table id="schoolTable">
+      <thead><tr>
+        <th onclick="sortTable('name')">School ↕</th>
+        <th onclick="sortTable('district')">District ↕</th>
+        <th onclick="sortTable('urban')">Urban ↕</th>
+        <th onclick="sortTable('size')">Size ↕</th>
+        <th onclick="sortTable('acres')">Acres ↕</th>
+        <th onclick="sortTable('pctImp')">% Impervious ↕</th>
+        <th onclick="sortTable('impRank')">Imp. Rank ↕</th>
+        <th>Grade</th>
+      </tr></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+</div>
+<footer>Pierce County, WA · Pierce_Elem_Feeder_Final · GIS Lab 3 · chenes22</footer>
+
+<script>
+const SCHOOLS = [{"name":"Weyerhaeuser Elementary School","district":"EATONVILLE","acres":3.9,"size":"Large","urban":"Non-Urban","pctImp":18.6,"impRank":"Least Impervious","grade":"K-6"},{"name":"Roy Elementary School","district":"BETHEL","acres":1.72,"size":"Average","urban":"Non-Urban","pctImp":35.64,"impRank":"Least Impervious","grade":"K-6"},{"name":"McKenna Elementary","district":"YELM","acres":1.44,"size":"Average","urban":"Urban","pctImp":47.52,"impRank":"Middle","grade":"K-6"},{"name":"Rainier Elementary School","district":"CLOVER PARK","acres":1.53,"size":"Average","urban":"Urban","pctImp":62.42,"impRank":"Most Impervious","grade":"K-6"},{"name":"Bethel Hope Early Learning Center","district":"BETHEL","acres":0.18,"size":"Small","urban":"Urban","pctImp":54.66,"impRank":"Middle","grade":"PK"},{"name":"Evergreen Elementary School","district":"BETHEL","acres":1.9,"size":"Average","urban":"Urban","pctImp":47.93,"impRank":"Middle","grade":"K-6"},{"name":"Chloe Clark Elementary","district":"STEILACOOM","acres":2.02,"size":"Average","urban":"Urban","pctImp":46.31,"impRank":"Middle","grade":"K-6"},{"name":"Tillicum Elementary School","district":"CLOVER PARK","acres":1.1,"size":"Average","urban":"Urban","pctImp":52.03,"impRank":"Middle","grade":"K-6"},{"name":"Evergreen Elementary School - Fort Lewis","district":"CLOVER PARK","acres":3.32,"size":"Large","urban":"Urban","pctImp":47.89,"impRank":"Middle","grade":"K-6"},{"name":"Anderson Island Elementary","district":"STEILACOOM","acres":1.71,"size":"Average","urban":"Non-Urban","pctImp":4.57,"impRank":"Least Impervious","grade":"K-6"},{"name":"Beachwood Elementary School","district":"CLOVER PARK","acres":0.9,"size":"Small","urban":"Urban","pctImp":64.1,"impRank":"Most Impervious","grade":"K-6"},{"name":"Hillside Elementary School","district":"CLOVER PARK","acres":2.21,"size":"Average","urban":"Urban","pctImp":61.29,"impRank":"Most Impervious","grade":"K-6"},{"name":"Imagination School","district":"NOT APPLICABLE","acres":0.37,"size":"Small","urban":"Urban","pctImp":89.82,"impRank":"Most Impervious","grade":"PRE-6"},{"name":"Elmhurst Elementary School","district":"FRANKLIN PIERCE","acres":1.29,"size":"Average","urban":"Urban","pctImp":48.21,"impRank":"Middle","grade":"K-6"},{"name":"Spanaway Elementary School","district":"BETHEL","acres":0.93,"size":"Small","urban":"Urban","pctImp":68.61,"impRank":"Most Impervious","grade":"PRE-6"},{"name":"Brookdale Elementary School","district":"FRANKLIN PIERCE","acres":0.89,"size":"Small","urban":"Urban","pctImp":62.38,"impRank":"Most Impervious","grade":"K-6"},{"name":"Meriwether Elementary School","district":"CLOVER PARK","acres":3.87,"size":"Large","urban":"Urban","pctImp":58.35,"impRank":"Most Impervious","grade":"K-6"},{"name":"Oak Grove Elementary","district":"CLOVER PARK","acres":0.82,"size":"Small","urban":"Urban","pctImp":43.71,"impRank":"Middle","grade":"K-6"},{"name":"Cherrydale Primary School","district":"STEILACOOM","acres":1.44,"size":"Average","urban":"Urban","pctImp":51.38,"impRank":"Middle","grade":"K-6"},{"name":"Custer Elementary School","district":"CLOVER PARK","acres":2.72,"size":"Average","urban":"Urban","pctImp":34.93,"impRank":"Least Impervious","grade":"K-6"},{"name":"Lake Louise Elementary School","district":"CLOVER PARK","acres":1.84,"size":"Average","urban":"Urban","pctImp":38.4,"impRank":"Middle","grade":"K-6"},{"name":"Park Lodge Elementary School","district":"CLOVER PARK","acres":1.19,"size":"Average","urban":"Urban","pctImp":54.57,"impRank":"Middle","grade":"K-6"},{"name":"Idlewild Elementary School","district":"CLOVER PARK","acres":1.82,"size":"Average","urban":"Urban","pctImp":34.94,"impRank":"Least Impervious","grade":"K-6"},{"name":"Carter Lake Elementary School","district":"CLOVER PARK","acres":2.65,"size":"Average","urban":"Urban","pctImp":48.6,"impRank":"Middle","grade":"K-6"},{"name":"James Sales Elementary School","district":"FRANKLIN PIERCE","acres":1.23,"size":"Average","urban":"Urban","pctImp":69.64,"impRank":"Most Impervious","grade":"K-8"},{"name":"Gravelly Lake K-12 Academy","district":"CLOVER PARK","acres":0.58,"size":"Small","urban":"Urban","pctImp":63.19,"impRank":"Most Impervious","grade":"K-12"},{"name":"Lakeview Hope Academy","district":"CLOVER PARK","acres":1.92,"size":"Average","urban":"Urban","pctImp":67.72,"impRank":"Most Impervious","grade":"K-6"},{"name":"Tyee Park Elementary School","district":"CLOVER PARK","acres":1.96,"size":"Average","urban":"Urban","pctImp":40.64,"impRank":"Middle","grade":"K-6"},{"name":"Christensen Elementary School","district":"FRANKLIN PIERCE","acres":1.22,"size":"Average","urban":"Urban","pctImp":42.85,"impRank":"Middle","grade":"K-6"},{"name":"Fern Hill Elementary School","district":"TACOMA","acres":0.96,"size":"Small","urban":"Urban","pctImp":71.38,"impRank":"Most Impervious","grade":"K-5"},{"name":"Sheridan Elementary","district":"TACOMA","acres":1.06,"size":"Average","urban":"Urban","pctImp":60.45,"impRank":"Most Impervious","grade":"K-5"},{"name":"Oakbrook Elementary School","district":"CLOVER PARK","acres":2.01,"size":"Average","urban":"Urban","pctImp":41.81,"impRank":"Middle","grade":"K-6"},{"name":"Minter Creek Elementary School","district":"PENINSULA","acres":2.05,"size":"Average","urban":"Urban","pctImp":37.67,"impRank":"Least Impervious","grade":"K-6"},{"name":"Evergreen Elementary School - Lakebay","district":"PENINSULA","acres":2.49,"size":"Average","urban":"Non-Urban","pctImp":48.29,"impRank":"Middle","grade":"K-6"},{"name":"Voyager Elementary School","district":"PENINSULA","acres":2.81,"size":"Average","urban":"Urban","pctImp":26.15,"impRank":"Least Impervious","grade":"K-6"},{"name":"Artondale Elementary School","district":"PENINSULA","acres":2.18,"size":"Average","urban":"Urban","pctImp":50.19,"impRank":"Middle","grade":"K-6"},{"name":"Discovery Elementary School","district":"PENINSULA","acres":2.33,"size":"Average","urban":"Urban","pctImp":49.14,"impRank":"Middle","grade":"K-6"},{"name":"Point Defiance Elementary","district":"TACOMA","acres":2.53,"size":"Average","urban":"Urban","pctImp":50.78,"impRank":"Middle","grade":"K-5"},{"name":"Swift Water Elementary School","district":"PENINSULA","acres":2.91,"size":"Large","urban":"Urban","pctImp":37.63,"impRank":"Least Impervious","grade":"K-8"},{"name":"Vaughn Elementary School","district":"PENINSULA","acres":2.94,"size":"Large","urban":"Non-Urban","pctImp":30.97,"impRank":"Least Impervious","grade":"K-6"},{"name":"Four Heroes Elementary School","district":"CLOVER PARK","acres":0.81,"size":"Small","urban":"Urban","pctImp":77.85,"impRank":"Most Impervious","grade":"6-8"},{"name":"Manitou Park Elementary","district":"TACOMA","acres":0.79,"size":"Small","urban":"Urban","pctImp":69.69,"impRank":"Most Impervious","grade":"K-5"},{"name":"Hunt Middle School","district":"TACOMA","acres":4.97,"size":"Large","urban":"Urban","pctImp":64.03,"impRank":"Most Impervious","grade":"K-5"},{"name":"Bryant Montessori PK-8","district":"TACOMA","acres":1.25,"size":"Average","urban":"Urban","pctImp":58.22,"impRank":"Most Impervious","grade":"PRE-8"},{"name":"Saltar's Point Elementary","district":"STEILACOOM","acres":1.55,"size":"Average","urban":"Urban","pctImp":46.06,"impRank":"Middle","grade":"K-6"},{"name":"DeLong Elementary School","district":"TACOMA","acres":1.0,"size":"Small","urban":"Urban","pctImp":65.18,"impRank":"Most Impervious","grade":"K-5"},{"name":"Jefferson Elementary School","district":"TACOMA","acres":1.02,"size":"Small","urban":"Urban","pctImp":67.71,"impRank":"Most Impervious","grade":"K-5"},{"name":"Geiger Montessori School","district":"TACOMA","acres":1.45,"size":"Average","urban":"Urban","pctImp":80.23,"impRank":"Most Impervious","grade":"K-5"},{"name":"Sherman Elementary School","district":"TACOMA","acres":0.72,"size":"Small","urban":"Urban","pctImp":67.6,"impRank":"Most Impervious","grade":"K-5"},{"name":"Skyline Elementary School","district":"TACOMA","acres":2.68,"size":"Average","urban":"Urban","pctImp":65.43,"impRank":"Most Impervious","grade":"K-5"},{"name":"Pioneer Elementary School","district":"PENINSULA","acres":3.06,"size":"Large","urban":"Urban","pctImp":36.14,"impRank":"Least Impervious","grade":"K-6"},{"name":"Harbor Heights Elementary School","district":"PENINSULA","acres":1.72,"size":"Average","urban":"Urban","pctImp":38.58,"impRank":"Middle","grade":"K-6"},{"name":"Arlington Elementary School","district":"TACOMA","acres":1.19,"size":"Average","urban":"Urban","pctImp":63.96,"impRank":"Most Impervious","grade":"K-5"},{"name":"Jennie Reed Elementary","district":"TACOMA","acres":1.47,"size":"Average","urban":"Urban","pctImp":59.83,"impRank":"Most Impervious","grade":"K-5"},{"name":"Dower Elementary School","district":"CLOVER PARK","acres":1.71,"size":"Average","urban":"Urban","pctImp":33.22,"impRank":"Least Impervious","grade":"K-6"},{"name":"Stafford Elementary","district":"TACOMA","acres":2.11,"size":"Average","urban":"Urban","pctImp":56.12,"impRank":"Middle","grade":"K-5"},{"name":"Birney Elementary School","district":"TACOMA","acres":1.74,"size":"Average","urban":"Urban","pctImp":70.65,"impRank":"Most Impervious","grade":"K-5"},{"name":"Mann Elementary School","district":"TACOMA","acres":0.66,"size":"Small","urban":"Urban","pctImp":74.73,"impRank":"Most Impervious","grade":"K-5"},{"name":"Whittier Elementary","district":"TACOMA","acres":0.97,"size":"Small","urban":"Urban","pctImp":58.32,"impRank":"Most Impervious","grade":"K-5"},{"name":"Edison Elementary School","district":"TACOMA","acres":2.07,"size":"Average","urban":"Urban","pctImp":70.46,"impRank":"Most Impervious","grade":"K-5"},{"name":"Whitman Elementary School","district":"TACOMA","acres":0.73,"size":"Small","urban":"Urban","pctImp":82.01,"impRank":"Most Impervious","grade":"K-5"},{"name":"Bryant Montessori PK-8 (2)","district":"TACOMA","acres":0.52,"size":"Small","urban":"Urban","pctImp":58.22,"impRank":"Most Impervious","grade":"PRE-8"},{"name":"Blix Elementary School","district":"TACOMA","acres":1.74,"size":"Average","urban":"Urban","pctImp":58.84,"impRank":"Most Impervious","grade":"K-5"},{"name":"Grant Center for the Expressive Arts","district":"TACOMA","acres":0.71,"size":"Small","urban":"Urban","pctImp":75.63,"impRank":"Most Impervious","grade":"K-6"},{"name":"Stanley Elementary School","district":"TACOMA","acres":0.6,"size":"Small","urban":"Urban","pctImp":71.47,"impRank":"Most Impervious","grade":"K-5"},{"name":"Franklin Elementary School","district":"TACOMA","acres":1.86,"size":"Average","urban":"Urban","pctImp":50.34,"impRank":"Middle","grade":"K-5"},{"name":"North Tacoma Cooperative Preschool","district":"TACOMA","acres":0.15,"size":"Small","urban":"Urban","pctImp":67.31,"impRank":"Most Impervious","grade":"PK"},{"name":"Browns Point Elementary School","district":"TACOMA","acres":3.86,"size":"Large","urban":"Urban","pctImp":58.4,"impRank":"Most Impervious","grade":"K-5"},{"name":"Downing Elementary School","district":"TACOMA","acres":1.96,"size":"Average","urban":"Urban","pctImp":64.21,"impRank":"Most Impervious","grade":"K-5"},{"name":"Washington Elementary School","district":"TACOMA","acres":0.39,"size":"Small","urban":"Urban","pctImp":79.35,"impRank":"Most Impervious","grade":"K-5"},{"name":"Rocky Ridge Elementary School","district":"BETHEL","acres":2.06,"size":"Average","urban":"Urban","pctImp":35.12,"impRank":"Least Impervious","grade":"K-6"},{"name":"Camas Prairie Elementary School","district":"BETHEL","acres":1.81,"size":"Average","urban":"Urban","pctImp":54.37,"impRank":"Middle","grade":"K-6"},{"name":"Kapowsin Elementary","district":"BETHEL","acres":1.9,"size":"Average","urban":"Non-Urban","pctImp":53.73,"impRank":"Middle","grade":"K-6"},{"name":"North Star Elementary School","district":"BETHEL","acres":3.57,"size":"Large","urban":"Urban","pctImp":33.31,"impRank":"Least Impervious","grade":"K-6"},{"name":"Nelson Elementary","district":"BETHEL","acres":3.8,"size":"Large","urban":"Urban","pctImp":33.93,"impRank":"Least Impervious","grade":"PRE-6"},{"name":"Pioneer Valley Elementary School","district":"BETHEL","acres":2.84,"size":"Large","urban":"Urban","pctImp":46.63,"impRank":"Middle","grade":"PRE-6"},{"name":"Centennial Elementary School","district":"BETHEL","acres":2.68,"size":"Average","urban":"Urban","pctImp":33.7,"impRank":"Least Impervious","grade":"K-6"},{"name":"Shining Mountain Elementary School","district":"BETHEL","acres":1.63,"size":"Average","urban":"Urban","pctImp":57.11,"impRank":"Middle","grade":"PRE-6"},{"name":"Carson Elementary School","district":"PUYALLUP","acres":3.03,"size":"Large","urban":"Urban","pctImp":52.72,"impRank":"Middle","grade":"K-6"},{"name":"Expedition Elementary","district":"BETHEL","acres":2.3,"size":"Average","urban":"Urban","pctImp":66.33,"impRank":"Most Impervious","grade":"K-5"},{"name":"Pope Elementary School","district":"PUYALLUP","acres":1.96,"size":"Average","urban":"Urban","pctImp":57.17,"impRank":"Most Impervious","grade":"K-6"},{"name":"Katherine G Johnson Elementary School","district":"BETHEL","acres":2.6,"size":"Average","urban":"Urban","pctImp":50.97,"impRank":"Middle","grade":"K-6"},{"name":"Clover Creek Elementary School","district":"BETHEL","acres":1.83,"size":"Average","urban":"Urban","pctImp":58.9,"impRank":"Most Impervious","grade":"PRE-6"},{"name":"Brouillet Elementary School","district":"PUYALLUP","acres":2.06,"size":"Average","urban":"Urban","pctImp":46.63,"impRank":"Middle","grade":"K-6"},{"name":"Frederickson Elementary","district":"BETHEL","acres":1.95,"size":"Average","urban":"Urban","pctImp":50.89,"impRank":"Middle","grade":"PRE-6"},{"name":"Naches Trail Elementary School","district":"BETHEL","acres":4.7,"size":"Large","urban":"Urban","pctImp":42.24,"impRank":"Middle","grade":"K-6"},{"name":"Thompson Elementary","district":"BETHEL","acres":1.89,"size":"Average","urban":"Urban","pctImp":56.33,"impRank":"Middle","grade":"PRE-6"},{"name":"Graham Elementary School","district":"BETHEL","acres":4.99,"size":"Large","urban":"Urban","pctImp":22.67,"impRank":"Least Impervious","grade":"K-6"},{"name":"Hunt Elementary School","district":"PUYALLUP","acres":3.02,"size":"Large","urban":"Urban","pctImp":35.81,"impRank":"Least Impervious","grade":"K-6"},{"name":"Edgerton Elementary School","district":"PUYALLUP","acres":2.46,"size":"Average","urban":"Urban","pctImp":52.49,"impRank":"Middle","grade":"K-6"},{"name":"Tehaleh Heights Elementary School","district":"SUMNER","acres":2.85,"size":"Large","urban":"Urban","pctImp":56.92,"impRank":"Middle","grade":"K-6"},{"name":"Firgrove Elementary School","district":"PUYALLUP","acres":2.0,"size":"Average","urban":"Urban","pctImp":60.87,"impRank":"Most Impervious","grade":"K-6"},{"name":"Carbonado Historical School 19","district":"CARBONADO","acres":0.55,"size":"Small","urban":"Non-Urban","pctImp":46.16,"impRank":"Middle","grade":"K-8"},{"name":"Victor Falls Elementary School","district":"SUMNER","acres":2.76,"size":"Average","urban":"Urban","pctImp":35.28,"impRank":"Least Impervious","grade":"K-6"},{"name":"Donald Eismann Elementary School","district":"SUMNER","acres":2.82,"size":"Average","urban":"Urban","pctImp":67.15,"impRank":"Most Impervious","grade":"K-6"},{"name":"Columbia Crest A-STEM Academy","district":"EATONVILLE","acres":2.93,"size":"Large","urban":"Non-Urban","pctImp":8.26,"impRank":"Least Impervious","grade":"K-6"},{"name":"Orting Primary School","district":"ORTING","acres":1.38,"size":"Average","urban":"Non-Urban","pctImp":73.42,"impRank":"Most Impervious","grade":"K-6"},{"name":"Liberty Ridge Elementary School","district":"SUMNER","acres":2.07,"size":"Average","urban":"Urban","pctImp":48.47,"impRank":"Middle","grade":"K-6"},{"name":"Wilkeson Elementary School","district":"WHITE RIVER","acres":1.28,"size":"Average","urban":"Non-Urban","pctImp":35.09,"impRank":"Least Impervious","grade":"K-6"},{"name":"Eatonville Elementary School","district":"EATONVILLE","acres":3.57,"size":"Large","urban":"Non-Urban","pctImp":28.49,"impRank":"Least Impervious","grade":"K-6"},{"name":"Mountain Meadow Elementary School","district":"WHITE RIVER","acres":2.45,"size":"Average","urban":"Non-Urban","pctImp":40.03,"impRank":"Middle","grade":"K-6"},{"name":"Woodland Elementary School","district":"PUYALLUP","acres":2.03,"size":"Average","urban":"Urban","pctImp":47.22,"impRank":"Middle","grade":"K-6"},{"name":"Central Avenue Elementary School","district":"FRANKLIN PIERCE","acres":1.96,"size":"Average","urban":"Urban","pctImp":38.86,"impRank":"Middle","grade":"K-6"},{"name":"Midland Elementary School","district":"FRANKLIN PIERCE","acres":1.72,"size":"Average","urban":"Urban","pctImp":53.68,"impRank":"Middle","grade":"K-6"},{"name":"Fawcett Elementary","district":"TACOMA","acres":1.13,"size":"Average","urban":"Urban","pctImp":63.17,"impRank":"Most Impervious","grade":"K-5"},{"name":"Collins Elementary School","district":"FRANKLIN PIERCE","acres":3.77,"size":"Large","urban":"Urban","pctImp":25.58,"impRank":"Least Impervious","grade":"K-5"},{"name":"Karshner Elementary School","district":"PUYALLUP","acres":1.44,"size":"Average","urban":"Urban","pctImp":44.6,"impRank":"Middle","grade":"K-6"},{"name":"Harvard Elementary School","district":"FRANKLIN PIERCE","acres":1.1,"size":"Average","urban":"Urban","pctImp":69.13,"impRank":"Most Impervious","grade":"K-6"},{"name":"Maplewood Elementary School","district":"PUYALLUP","acres":1.05,"size":"Small","urban":"Urban","pctImp":61.07,"impRank":"Most Impervious","grade":"K-6"},{"name":"Stewart Elementary School","district":"PUYALLUP","acres":0.78,"size":"Small","urban":"Urban","pctImp":69.9,"impRank":"Most Impervious","grade":"K-6"},{"name":"Larchmont Elementary School","district":"TACOMA","acres":2.8,"size":"Average","urban":"Urban","pctImp":39.52,"impRank":"Middle","grade":"K-5"},{"name":"Boze Elementary School","district":"TACOMA","acres":2.72,"size":"Average","urban":"Urban","pctImp":60.78,"impRank":"Most Impervious","grade":"K-5"},{"name":"Mary Lyon Elementary School","district":"TACOMA","acres":0.58,"size":"Small","urban":"Urban","pctImp":75.01,"impRank":"Most Impervious","grade":"K-5"},{"name":"Lowell Elementary","district":"TACOMA","acres":0.57,"size":"Small","urban":"Urban","pctImp":80.32,"impRank":"Most Impervious","grade":"K-5"},{"name":"Lister Elementary","district":"TACOMA","acres":1.39,"size":"Average","urban":"Urban","pctImp":54.76,"impRank":"Middle","grade":"K-5"},{"name":"Fruitland Elementary School","district":"PUYALLUP","acres":2.29,"size":"Average","urban":"Urban","pctImp":34.59,"impRank":"Least Impervious","grade":"K-6"},{"name":"Lakeland Hills Elementary School","district":"AUBURN","acres":2.47,"size":"Average","urban":"Urban","pctImp":65.96,"impRank":"Most Impervious","grade":"K-6"},{"name":"Travis Elementary","district":"TACOMA","acres":1.18,"size":"Average","urban":"Urban","pctImp":76.31,"impRank":"Most Impervious","grade":"K-5"},{"name":"Roosevelt Elementary School","district":"TACOMA","acres":1.0,"size":"Small","urban":"Urban","pctImp":65.58,"impRank":"Most Impervious","grade":"K-5"},{"name":"Crescent Heights Elementary School","district":"TACOMA","acres":1.64,"size":"Average","urban":"Urban","pctImp":65.46,"impRank":"Most Impervious","grade":"K-5"},{"name":"Waller Road Elementary School","district":"PUYALLUP","acres":1.3,"size":"Average","urban":"Urban","pctImp":42.52,"impRank":"Middle","grade":"K-6"},{"name":"Alice V. Hedden Elementary School","district":"FIFE","acres":2.66,"size":"Average","urban":"Urban","pctImp":38.52,"impRank":"Middle","grade":"K-6"},{"name":"Fife Elementary School","district":"FIFE","acres":2.58,"size":"Average","urban":"Urban","pctImp":69.95,"impRank":"Most Impervious","grade":"K-5"},{"name":"Zeiger Elementary School","district":"PUYALLUP","acres":9.22,"size":"Large","urban":"Urban","pctImp":40.63,"impRank":"Middle","grade":"K-6"},{"name":"Dessie F. Evans Elementary School","district":"PUYALLUP","acres":3.4,"size":"Large","urban":"Urban","pctImp":53.14,"impRank":"Middle","grade":"K-6"},{"name":"Wildwood Elementary School","district":"PUYALLUP","acres":2.0,"size":"Average","urban":"Urban","pctImp":39.79,"impRank":"Middle","grade":"K-6"},{"name":"Sunrise Elementary School","district":"PUYALLUP","acres":1.88,"size":"Average","urban":"Urban","pctImp":59.18,"impRank":"Most Impervious","grade":"K-6"},{"name":"Shaw Road Elementary School","district":"PUYALLUP","acres":2.85,"size":"Large","urban":"Urban","pctImp":42.35,"impRank":"Middle","grade":"K-6"},{"name":"Meeker Elementary School","district":"PUYALLUP","acres":0.5,"size":"Small","urban":"Urban","pctImp":69.93,"impRank":"Most Impervious","grade":"K-6"},{"name":"Maple Lawn Elementary School","district":"SUMNER","acres":1.53,"size":"Average","urban":"Urban","pctImp":58.91,"impRank":"Most Impervious","grade":"K-6"},{"name":"Bonney Lake Elementary School","district":"SUMNER","acres":2.61,"size":"Average","urban":"Urban","pctImp":35.4,"impRank":"Least Impervious","grade":"K-6"},{"name":"Northeast Tacoma Elementary School","district":"TACOMA","acres":1.56,"size":"Average","urban":"Urban","pctImp":50.63,"impRank":"Middle","grade":"K-5"},{"name":"Northwood Elementary School","district":"PUYALLUP","acres":2.99,"size":"Large","urban":"Urban","pctImp":56.12,"impRank":"Middle","grade":"K-6"},{"name":"Spinning Elementary School","district":"PUYALLUP","acres":0.88,"size":"Small","urban":"Urban","pctImp":62.94,"impRank":"Most Impervious","grade":"K-6"},{"name":"Mountain View Elementary School","district":"PUYALLUP","acres":1.98,"size":"Average","urban":"Urban","pctImp":29.85,"impRank":"Least Impervious","grade":"K-6"},{"name":"Ridgecrest Elementary School","district":"PUYALLUP","acres":1.87,"size":"Average","urban":"Urban","pctImp":44.87,"impRank":"Middle","grade":"K-6"},{"name":"Lake Tapps Elementary School","district":"DIERINGER","acres":4.4,"size":"Large","urban":"Urban","pctImp":42.06,"impRank":"Middle","grade":"K-6"},{"name":"Dieringer Heights Elementary School","district":"DIERINGER","acres":2.64,"size":"Average","urban":"Urban","pctImp":34.96,"impRank":"Least Impervious","grade":"K-6"},{"name":"Daffodil Valley Elementary School","district":"SUMNER","acres":2.39,"size":"Average","urban":"Urban","pctImp":51.7,"impRank":"Middle","grade":"K-6"},{"name":"Crestwood Elementary School","district":"SUMNER","acres":5.27,"size":"Large","urban":"Urban","pctImp":29.58,"impRank":"Least Impervious","grade":"K-6"},{"name":"Emerald Hills Elementary School","district":"SUMNER","acres":2.36,"size":"Average","urban":"Urban","pctImp":56.84,"impRank":"Middle","grade":"K-6"},{"name":"Elk Ridge Elementary School","district":"WHITE RIVER","acres":3.42,"size":"Large","urban":"Urban","pctImp":42.09,"impRank":"Middle","grade":"K-6"},{"name":"Foothills Elementary School","district":"WHITE RIVER","acres":5.63,"size":"Large","urban":"Urban","pctImp":24.39,"impRank":"Least Impervious","grade":"K-6"},{"name":"Purdy Elementary School","district":"PENINSULA","acres":5.77,"size":"Large","urban":"Urban","pctImp":37.2,"impRank":"Least Impervious","grade":"K-6"}];
+
+function impColor(rank) {
+  if (rank === 'Least Impervious') return '#4fffb0';
+  if (rank === 'Middle') return '#ffd166';
+  return '#ff6b6b';
+}
+function impBadge(r) {
+  const cls = r==='Least Impervious'?'least':r==='Middle'?'middle':'most';
+  const lbl = r==='Least Impervious'?'Least':r==='Middle'?'Middle':'Most';
+  return `<span class="badge badge-${cls}">${lbl}</span>`;
+}
+function sizeBadge(s) {
+  const cls = s==='Large'?'large':s==='Small'?'small':'avg';
+  return `<span class="badge badge-${cls}">${s}</span>`;
+}
+function urbanBadge(u) {
+  return u==='Urban'?`<span class="badge badge-urban">Urban</span>`:`<span class="badge badge-nonurban">Non-Urban</span>`;
+}
+
+// Chart 1
+(function(){
+  const c={Urban:{'Least Impervious':0,Middle:0,'Most Impervious':0},'Non-Urban':{'Least Impervious':0,Middle:0,'Most Impervious':0}};
+  SCHOOLS.forEach(s=>c[s.urban][s.impRank]++);
+  new Chart(document.getElementById('urbanImpChart'),{type:'bar',data:{
+    labels:['Urban (132)','Non-Urban (12)'],
+    datasets:[
+      {label:'Least Impervious',data:[c.Urban['Least Impervious'],c['Non-Urban']['Least Impervious']],backgroundColor:'#4fffb025',borderColor:'#4fffb0',borderWidth:2},
+      {label:'Middle',data:[c.Urban.Middle,c['Non-Urban'].Middle],backgroundColor:'#ffd16625',borderColor:'#ffd166',borderWidth:2},
+      {label:'Most Impervious',data:[c.Urban['Most Impervious'],c['Non-Urban']['Most Impervious']],backgroundColor:'#ff6b6b25',borderColor:'#ff6b6b',borderWidth:2}
+    ]},options:{responsive:true,plugins:{legend:{labels:{color:'#9ca3af',font:{size:11}}}},scales:{x:{stacked:true,ticks:{color:'#6b7280'},grid:{color:'#1e2330'}},y:{stacked:true,ticks:{color:'#6b7280'},grid:{color:'#1e2330'}}}}});
+})();
+
+// Chart 2
+(function(){
+  const c={Small:{'Least Impervious':0,Middle:0,'Most Impervious':0},Average:{'Least Impervious':0,Middle:0,'Most Impervious':0},Large:{'Least Impervious':0,Middle:0,'Most Impervious':0}};
+  SCHOOLS.forEach(s=>c[s.size][s.impRank]++);
+  new Chart(document.getElementById('sizeImpChart'),{type:'bar',data:{
+    labels:['Small (29)','Average (87)','Large (28)'],
+    datasets:[
+      {label:'Least Impervious',data:['Small','Average','Large'].map(s=>c[s]['Least Impervious']),backgroundColor:'#4fffb025',borderColor:'#4fffb0',borderWidth:2},
+      {label:'Middle',data:['Small','Average','Large'].map(s=>c[s].Middle),backgroundColor:'#ffd16625',borderColor:'#ffd166',borderWidth:2},
+      {label:'Most Impervious',data:['Small','Average','Large'].map(s=>c[s]['Most Impervious']),backgroundColor:'#ff6b6b25',borderColor:'#ff6b6b',borderWidth:2}
+    ]},options:{responsive:true,plugins:{legend:{labels:{color:'#9ca3af',font:{size:11}}}},scales:{x:{ticks:{color:'#6b7280'},grid:{color:'#1e2330'}},y:{ticks:{color:'#6b7280'},grid:{color:'#1e2330'}}}}});
+})();
+
+// Chart 3: Scatter
+(function(){
+  const ds=['Least Impervious','Middle','Most Impervious'].map(rank=>({
+    label:rank,
+    data:SCHOOLS.filter(s=>s.impRank===rank).map(s=>({x:s.acres,y:s.pctImp,name:s.name})),
+    backgroundColor:impColor(rank)+'99',borderColor:impColor(rank),pointRadius:5,pointHoverRadius:8
+  }));
+  new Chart(document.getElementById('scatterChart'),{type:'scatter',data:{datasets:ds},options:{responsive:true,
+    plugins:{legend:{labels:{color:'#9ca3af',font:{size:11}}},tooltip:{callbacks:{label:c=>` ${c.raw.name}: ${c.raw.x.toFixed(2)} ac, ${c.raw.y.toFixed(1)}%`}}},
+    scales:{x:{title:{display:true,text:'Campus Size (Acres)',color:'#6b7280'},ticks:{color:'#6b7280'},grid:{color:'#1e2330'}},
+            y:{title:{display:true,text:'% Impervious',color:'#6b7280'},ticks:{color:'#6b7280',callback:v=>v+'%'},grid:{color:'#1e2330'}}}}});
+})();
+
+// Chart 4: District bar
+(function(){
+  const dm={};
+  SCHOOLS.forEach(s=>{if(!dm[s.district])dm[s.district]=[];dm[s.district].push(s.pctImp);});
+  const avgs=Object.entries(dm).map(([d,v])=>({d,avg:v.reduce((a,b)=>a+b,0)/v.length,n:v.length})).sort((a,b)=>b.avg-a.avg);
+  new Chart(document.getElementById('districtChart'),{type:'bar',data:{
+    labels:avgs.map(x=>`${x.d} (${x.n})`),
+    datasets:[{label:'Avg % Impervious',data:avgs.map(x=>x.avg.toFixed(1)),
+      backgroundColor:avgs.map(x=>x.avg>60?'#ff6b6b35':x.avg>45?'#ffd16635':'#4fffb035'),
+      borderColor:avgs.map(x=>x.avg>60?'#ff6b6b':x.avg>45?'#ffd166':'#4fffb0'),borderWidth:2}]
+  },options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.parsed.x}% avg`}}},
+    scales:{x:{ticks:{color:'#6b7280',callback:v=>v+'%'},grid:{color:'#1e2330'}},y:{ticks:{color:'#9ca3af',font:{size:10}},grid:{color:'#1e2330'}}}}});
+})();
+
+// Chart 5: Histogram
+(function(){
+  const bins=Array.from({length:10},(_,i)=>({min:i*10,max:(i+1)*10,count:0}));
+  SCHOOLS.forEach(s=>{const b=Math.min(Math.floor(s.pctImp/10),9);bins[b].count++;});
+  new Chart(document.getElementById('histChart'),{type:'bar',data:{
+    labels:bins.map(b=>`${b.min}–${b.max}%`),
+    datasets:[{label:'Schools',data:bins.map(b=>b.count),borderRadius:2,
+      backgroundColor:bins.map(b=>{const m=(b.min+b.max)/2;return m<40?'#4fffb030':m<60?'#ffd16630':'#ff6b6b30';}),
+      borderColor:bins.map(b=>{const m=(b.min+b.max)/2;return m<40?'#4fffb0':m<60?'#ffd166':'#ff6b6b';}),borderWidth:2}]
+  },options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6b7280',font:{size:10}},grid:{color:'#1e2330'}},y:{ticks:{color:'#6b7280'},grid:{color:'#1e2330'}}}}});
+})();
+
+// Chart 6: Donut
+(function(){
+  const c={Small:0,Average:0,Large:0};
+  SCHOOLS.forEach(s=>c[s.size]++);
+  new Chart(document.getElementById('sizeDonut'),{type:'doughnut',data:{
+    labels:['Small (29)','Average (87)','Large (28)'],
+    datasets:[{data:[c.Small,c.Average,c.Large],backgroundColor:['#ff6b6b20','#ffd16620','#4fffb020'],borderColor:['#ff6b6b','#ffd166','#4fffb0'],borderWidth:2}]
+  },options:{responsive:true,cutout:'62%',plugins:{legend:{labels:{color:'#9ca3af',font:{size:12}}}}}});
+})();
+
+// Table
+let sortKey='pctImp',sortDir=-1,filtered=[...SCHOOLS];
+const districts=[...new Set(SCHOOLS.map(s=>s.district))].sort();
+const dsel=document.getElementById('filterDistrict');
+districts.forEach(d=>{const o=document.createElement('option');o.value=d;o.textContent=d;dsel.appendChild(o);});
+
+function filterTable(){
+  const dist=dsel.value,size=document.getElementById('filterSize').value,
+    urban=document.getElementById('filterUrban').value,rank=document.getElementById('filterRank').value,
+    search=document.getElementById('filterSearch').value.toLowerCase();
+  filtered=SCHOOLS.filter(s=>(!dist||s.district===dist)&&(!size||s.size===size)&&(!urban||s.urban===urban)&&(!rank||s.impRank===rank)&&(!search||s.name.toLowerCase().includes(search)));
+  renderTable();
+}
+
+function sortTable(key){
+  if(sortKey===key)sortDir*=-1;else{sortKey=key;sortDir=1;}
+  renderTable();
+}
+
+function renderTable(){
+  const sorted=[...filtered].sort((a,b)=>{
+    const av=a[sortKey],bv=b[sortKey];
+    return(typeof av==='number'?av-bv:av.localeCompare(bv))*sortDir;
+  });
+  document.getElementById('rowCount').textContent=`SHOWING ${sorted.length} OF ${SCHOOLS.length} SCHOOLS`;
+  document.getElementById('tableBody').innerHTML=sorted.map(s=>{
+    const barW=Math.round(s.pctImp*0.75),bc=s.pctImp>60?'#ff6b6b':s.pctImp>40?'#ffd166':'#4fffb0';
+    return`<tr><td style="color:#e8eaf0;font-weight:500;max-width:220px;white-space:normal">${s.name}</td><td style="color:#9ca3af">${s.district}</td><td>${urbanBadge(s.urban)}</td><td>${sizeBadge(s.size)}</td><td style="color:#9ca3af;font-family:'Space Mono',monospace;font-size:11px">${s.acres.toFixed(2)}</td><td><div class="pct-bar-wrap"><div class="pct-bar" style="width:${barW}px;background:${bc}35;border:1px solid ${bc}"></div><span style="font-family:'Space Mono',monospace;font-size:11px;color:${bc}">${s.pctImp.toFixed(1)}%</span></div></td><td>${impBadge(s.impRank)}</td><td style="color:#6b7280;font-size:11px">${s.grade}</td></tr>`;
+  }).join('');
+}
+renderTable();
+</script>
+</body>
+</html>
